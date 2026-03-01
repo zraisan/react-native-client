@@ -10,6 +10,9 @@
 #include <fbjni/fbjni.h>
 #include "DownloadConfig.hpp"
 
+#include "JFunc_void_double_double.hpp"
+#include <NitroModules/JNICallable.hpp>
+#include <functional>
 #include <optional>
 #include <string>
 
@@ -46,6 +49,8 @@ namespace margelo::nitro::client {
       jni::local_ref<jni::JDouble> connectionTimeout = this->getFieldValue(fieldConnectionTimeout);
       static const auto fieldReadTimeout = clazz->getField<jni::JDouble>("readTimeout");
       jni::local_ref<jni::JDouble> readTimeout = this->getFieldValue(fieldReadTimeout);
+      static const auto fieldOnProgress = clazz->getField<JFunc_void_double_double::javaobject>("onProgress");
+      jni::local_ref<JFunc_void_double_double::javaobject> onProgress = this->getFieldValue(fieldOnProgress);
       return DownloadConfig(
         fromUrl->toStdString(),
         toFile->toStdString(),
@@ -53,7 +58,16 @@ namespace margelo::nitro::client {
         discretionary != nullptr ? std::make_optional(static_cast<bool>(discretionary->value())) : std::nullopt,
         progressDivider != nullptr ? std::make_optional(progressDivider->value()) : std::nullopt,
         connectionTimeout != nullptr ? std::make_optional(connectionTimeout->value()) : std::nullopt,
-        readTimeout != nullptr ? std::make_optional(readTimeout->value()) : std::nullopt
+        readTimeout != nullptr ? std::make_optional(readTimeout->value()) : std::nullopt,
+        onProgress != nullptr ? std::make_optional([&]() -> std::function<void(double /* bytesWritten */, double /* contentLength */)> {
+          if (onProgress->isInstanceOf(JFunc_void_double_double_cxx::javaClassStatic())) [[likely]] {
+            auto downcast = jni::static_ref_cast<JFunc_void_double_double_cxx::javaobject>(onProgress);
+            return downcast->cthis()->getFunction();
+          } else {
+            auto onProgressRef = jni::make_global(onProgress);
+            return JNICallable<JFunc_void_double_double, void(double, double)>(std::move(onProgressRef));
+          }
+        }()) : std::nullopt
       );
     }
 
@@ -63,7 +77,7 @@ namespace margelo::nitro::client {
      */
     [[maybe_unused]]
     static jni::local_ref<JDownloadConfig::javaobject> fromCpp(const DownloadConfig& value) {
-      using JSignature = JDownloadConfig(jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JBoolean>, jni::alias_ref<jni::JBoolean>, jni::alias_ref<jni::JDouble>, jni::alias_ref<jni::JDouble>, jni::alias_ref<jni::JDouble>);
+      using JSignature = JDownloadConfig(jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JBoolean>, jni::alias_ref<jni::JBoolean>, jni::alias_ref<jni::JDouble>, jni::alias_ref<jni::JDouble>, jni::alias_ref<jni::JDouble>, jni::alias_ref<JFunc_void_double_double::javaobject>);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -74,7 +88,8 @@ namespace margelo::nitro::client {
         value.discretionary.has_value() ? jni::JBoolean::valueOf(value.discretionary.value()) : nullptr,
         value.progressDivider.has_value() ? jni::JDouble::valueOf(value.progressDivider.value()) : nullptr,
         value.connectionTimeout.has_value() ? jni::JDouble::valueOf(value.connectionTimeout.value()) : nullptr,
-        value.readTimeout.has_value() ? jni::JDouble::valueOf(value.readTimeout.value()) : nullptr
+        value.readTimeout.has_value() ? jni::JDouble::valueOf(value.readTimeout.value()) : nullptr,
+        value.onProgress.has_value() ? JFunc_void_double_double_cxx::fromCpp(value.onProgress.value()) : nullptr
       );
     }
   };

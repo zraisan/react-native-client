@@ -16,6 +16,8 @@
 #include <NitroModules/HybridObjectRegistry.hpp>
 
 #include "JHybridClientSpec.hpp"
+#include "JFunc_void_double_double.hpp"
+#include <NitroModules/DefaultConstructableObject.hpp>
 
 namespace margelo::nitro::client {
 
@@ -27,9 +29,17 @@ int initialize(JavaVM* vm) {
   return facebook::jni::initialize(vm, [] {
     // Register native JNI methods
     margelo::nitro::client::JHybridClientSpec::registerNatives();
+    margelo::nitro::client::JFunc_void_double_double_cxx::registerNatives();
 
     // Register Nitro Hybrid Objects
-    
+    HybridObjectRegistry::registerHybridObjectConstructor(
+      "Client",
+      []() -> std::shared_ptr<HybridObject> {
+        static DefaultConstructableObject<JHybridClientSpec::javaobject> object("com/margelo/nitro/client/HybridClient");
+        auto instance = object.create();
+        return instance->cthis()->shared();
+      }
+    );
   });
 }
 

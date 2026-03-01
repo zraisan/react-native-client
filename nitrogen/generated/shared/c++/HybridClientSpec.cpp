@@ -14,6 +14,7 @@ namespace margelo::nitro::client {
     HybridObject::loadHybridMethods();
     // load custom methods/properties
     registerHybrids(this, [](Prototype& prototype) {
+      prototype.registerHybridGetter("documentDirectoryPath", &HybridClientSpec::getDocumentDirectoryPath);
       prototype.registerHybridMethod("downloadFile", &HybridClientSpec::downloadFile);
     });
   }

@@ -8,6 +8,7 @@ export interface DownloadConfig {
   progressDivider?: number
   connectionTimeout?: number
   readTimeout?: number
+  onProgress?: (bytesWritten: number, contentLength: number) => void
 }
 
 export interface DownloadResult {
@@ -19,5 +20,6 @@ export interface Client extends HybridObject<{
   ios: 'swift'
   android: 'kotlin'
 }> {
+  readonly documentDirectoryPath: string
   downloadFile(config: DownloadConfig): Promise<DownloadResult>
 }

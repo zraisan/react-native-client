@@ -43,7 +43,9 @@ abstract class HybridClientSpec: HybridObject() {
   }
 
   // Properties
-  
+  @get:DoNotStrip
+  @get:Keep
+  abstract val documentDirectoryPath: String
 
   // Methods
   @DoNotStrip

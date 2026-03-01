@@ -120,6 +120,43 @@ namespace margelo::nitro::client::bridge::swift {
     return optional.value();
   }
   
+  // pragma MARK: std::function<void(double /* bytesWritten */, double /* contentLength */)>
+  /**
+   * Specialized version of `std::function<void(double, double)>`.
+   */
+  using Func_void_double_double = std::function<void(double /* bytesWritten */, double /* contentLength */)>;
+  /**
+   * Wrapper class for a `std::function<void(double / * bytesWritten * /, double / * contentLength * /)>`, this can be used from Swift.
+   */
+  class Func_void_double_double_Wrapper final {
+  public:
+    explicit Func_void_double_double_Wrapper(std::function<void(double /* bytesWritten */, double /* contentLength */)>&& func): _function(std::make_unique<std::function<void(double /* bytesWritten */, double /* contentLength */)>>(std::move(func))) {}
+    inline void call(double bytesWritten, double contentLength) const noexcept {
+      _function->operator()(bytesWritten, contentLength);
+    }
+  private:
+    std::unique_ptr<std::function<void(double /* bytesWritten */, double /* contentLength */)>> _function;
+  } SWIFT_NONCOPYABLE;
+  Func_void_double_double create_Func_void_double_double(void* NON_NULL swiftClosureWrapper) noexcept;
+  inline Func_void_double_double_Wrapper wrap_Func_void_double_double(Func_void_double_double value) noexcept {
+    return Func_void_double_double_Wrapper(std::move(value));
+  }
+  
+  // pragma MARK: std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>>
+  /**
+   * Specialized version of `std::optional<std::function<void(double / * bytesWritten * /, double / * contentLength * /)>>`.
+   */
+  using std__optional_std__function_void_double____bytesWritten_____double____contentLength______ = std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>>;
+  inline std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>> create_std__optional_std__function_void_double____bytesWritten_____double____contentLength______(const std::function<void(double /* bytesWritten */, double /* contentLength */)>& value) noexcept {
+    return std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>>(value);
+  }
+  inline bool has_value_std__optional_std__function_void_double____bytesWritten_____double____contentLength______(const std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>>& optional) noexcept {
+    return optional.has_value();
+  }
+  inline std::function<void(double /* bytesWritten */, double /* contentLength */)> get_std__optional_std__function_void_double____bytesWritten_____double____contentLength______(const std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>>& optional) noexcept {
+    return optional.value();
+  }
+  
   // pragma MARK: std::shared_ptr<HybridClientSpec>
   /**
    * Specialized version of `std::shared_ptr<HybridClientSpec>`.

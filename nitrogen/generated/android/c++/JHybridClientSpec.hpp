@@ -51,7 +51,7 @@ namespace margelo::nitro::client {
 
   public:
     // Properties
-    
+    std::string getDocumentDirectoryPath() override;
 
   public:
     // Methods

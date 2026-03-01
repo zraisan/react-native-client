@@ -10,7 +10,7 @@ import NitroModules
 /// See ``HybridClientSpec``
 public protocol HybridClientSpec_protocol: HybridObject {
   // Properties
-  
+  var documentDirectoryPath: String { get }
 
   // Methods
   func downloadFile(config: DownloadConfig) throws -> Promise<DownloadResult>

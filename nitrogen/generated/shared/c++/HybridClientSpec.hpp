@@ -18,6 +18,7 @@ namespace margelo::nitro::client { struct DownloadResult; }
 // Forward declaration of `DownloadConfig` to properly resolve imports.
 namespace margelo::nitro::client { struct DownloadConfig; }
 
+#include <string>
 #include "DownloadResult.hpp"
 #include <NitroModules/Promise.hpp>
 #include "DownloadConfig.hpp"
@@ -49,7 +50,7 @@ namespace margelo::nitro::client {
 
     public:
       // Properties
-      
+      virtual std::string getDocumentDirectoryPath() = 0;
 
     public:
       // Methods

@@ -121,7 +121,12 @@ open class HybridClientSpec_cxx {
   }
 
   // Properties
-  
+  public final var documentDirectoryPath: std.string {
+    @inline(__always)
+    get {
+      return std.string(self.__implementation.documentDirectoryPath)
+    }
+  }
 
   // Methods
   @inline(__always)

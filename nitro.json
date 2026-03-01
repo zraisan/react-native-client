@@ -12,7 +12,12 @@
     ],
     "androidCxxLibName": "NitroClient"
   },
-  "autolinking": {},
+  "autolinking": {
+    "Client": {
+      "swift": "HybridClient",
+      "kotlin": "HybridClient"
+    }
+  },
   "ignorePaths": [
     "**/node_modules"
   ]

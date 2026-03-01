@@ -5,7 +5,9 @@ import type {
   DownloadResult,
 } from './specs/Client.nitro'
 
-const FetchHybridObject = NitroModules.createHybridObject<Client>('Fetch')
+const FetchHybridObject = NitroModules.createHybridObject<Client>('Client')
+
+export const documentDirectoryPath = FetchHybridObject.documentDirectoryPath
 
 export function downloadFile(config: DownloadConfig): Promise<DownloadResult> {
   return FetchHybridObject.downloadFile(config)

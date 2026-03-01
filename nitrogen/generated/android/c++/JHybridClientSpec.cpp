@@ -12,14 +12,17 @@ namespace margelo::nitro::client { struct DownloadResult; }
 // Forward declaration of `DownloadConfig` to properly resolve imports.
 namespace margelo::nitro::client { struct DownloadConfig; }
 
+#include <string>
 #include "DownloadResult.hpp"
 #include <NitroModules/Promise.hpp>
 #include <NitroModules/JPromise.hpp>
 #include "JDownloadResult.hpp"
 #include "DownloadConfig.hpp"
 #include "JDownloadConfig.hpp"
-#include <string>
 #include <optional>
+#include <functional>
+#include "JFunc_void_double_double.hpp"
+#include <NitroModules/JNICallable.hpp>
 
 namespace margelo::nitro::client {
 
@@ -57,7 +60,11 @@ namespace margelo::nitro::client {
   }
 
   // Properties
-  
+  std::string JHybridClientSpec::getDocumentDirectoryPath() {
+    static const auto method = javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("getDocumentDirectoryPath");
+    auto __result = method(_javaPart);
+    return __result->toStdString();
+  }
 
   // Methods
   std::shared_ptr<Promise<DownloadResult>> JHybridClientSpec::downloadFile(const DownloadConfig& config) {

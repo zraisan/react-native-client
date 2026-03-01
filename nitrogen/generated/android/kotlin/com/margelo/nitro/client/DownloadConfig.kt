@@ -37,9 +37,16 @@ data class DownloadConfig(
   val connectionTimeout: Double?,
   @DoNotStrip
   @Keep
-  val readTimeout: Double?
+  val readTimeout: Double?,
+  @DoNotStrip
+  @Keep
+  val onProgress: Func_void_double_double?
 ) {
-  /* primary constructor */
+  /**
+   * Create a new instance of DownloadConfig from Kotlin
+   */
+  constructor(fromUrl: String, toFile: String, background: Boolean?, discretionary: Boolean?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?, onProgress: ((bytesWritten: Double, contentLength: Double) -> Unit)?):
+         this(fromUrl, toFile, background, discretionary, progressDivider, connectionTimeout, readTimeout, onProgress?.let { Func_void_double_double_java(it) })
 
   companion object {
     /**
@@ -49,8 +56,8 @@ data class DownloadConfig(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(fromUrl: String, toFile: String, background: Boolean?, discretionary: Boolean?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?): DownloadConfig {
-      return DownloadConfig(fromUrl, toFile, background, discretionary, progressDivider, connectionTimeout, readTimeout)
+    private fun fromCpp(fromUrl: String, toFile: String, background: Boolean?, discretionary: Boolean?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?, onProgress: Func_void_double_double?): DownloadConfig {
+      return DownloadConfig(fromUrl, toFile, background, discretionary, progressDivider, connectionTimeout, readTimeout, onProgress)
     }
   }
 }

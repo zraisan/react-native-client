@@ -18,7 +18,7 @@ public extension DownloadConfig {
   /**
    * Create a new instance of `DownloadConfig`.
    */
-  init(fromUrl: String, toFile: String, background: Bool?, discretionary: Bool?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?) {
+  init(fromUrl: String, toFile: String, background: Bool?, discretionary: Bool?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?, onProgress: ((_ bytesWritten: Double, _ contentLength: Double) -> Void)?) {
     self.init(std.string(fromUrl), std.string(toFile), { () -> bridge.std__optional_bool_ in
       if let __unwrappedValue = background {
         return bridge.create_std__optional_bool_(__unwrappedValue)
@@ -46,6 +46,15 @@ public extension DownloadConfig {
     }(), { () -> bridge.std__optional_double_ in
       if let __unwrappedValue = readTimeout {
         return bridge.create_std__optional_double_(__unwrappedValue)
+      } else {
+        return .init()
+      }
+    }(), { () -> bridge.std__optional_std__function_void_double____bytesWritten_____double____contentLength______ in
+      if let __unwrappedValue = onProgress {
+        return bridge.create_std__optional_std__function_void_double____bytesWritten_____double____contentLength______({ () -> bridge.Func_void_double_double in
+          let __closureWrapper = Func_void_double_double(__unwrappedValue)
+          return bridge.create_Func_void_double_double(__closureWrapper.toUnsafe())
+        }())
       } else {
         return .init()
       }
@@ -116,6 +125,23 @@ public extension DownloadConfig {
       if bridge.has_value_std__optional_double_(self.__readTimeout) {
         let __unwrapped = bridge.get_std__optional_double_(self.__readTimeout)
         return __unwrapped
+      } else {
+        return nil
+      }
+    }()
+  }
+  
+  @inline(__always)
+  var onProgress: ((_ bytesWritten: Double, _ contentLength: Double) -> Void)? {
+    return { () -> ((_ bytesWritten: Double, _ contentLength: Double) -> Void)? in
+      if bridge.has_value_std__optional_std__function_void_double____bytesWritten_____double____contentLength______(self.__onProgress) {
+        let __unwrapped = bridge.get_std__optional_std__function_void_double____bytesWritten_____double____contentLength______(self.__onProgress)
+        return { () -> (Double, Double) -> Void in
+          let __wrappedFunction = bridge.wrap_Func_void_double_double(__unwrapped)
+          return { (__bytesWritten: Double, __contentLength: Double) -> Void in
+            __wrappedFunction.call(__bytesWritten, __contentLength)
+          }
+        }()
       } else {
         return nil
       }

@@ -30,6 +30,14 @@ namespace margelo::nitro::client::bridge::swift {
     };
   }
   
+  // pragma MARK: std::function<void(double /* bytesWritten */, double /* contentLength */)>
+  Func_void_double_double create_Func_void_double_double(void* NON_NULL swiftClosureWrapper) noexcept {
+    auto swiftClosure = NitroClient::Func_void_double_double::fromUnsafe(swiftClosureWrapper);
+    return [swiftClosure = std::move(swiftClosure)](double bytesWritten, double contentLength) mutable -> void {
+      swiftClosure.call(bytesWritten, contentLength);
+    };
+  }
+  
   // pragma MARK: std::shared_ptr<HybridClientSpec>
   std::shared_ptr<HybridClientSpec> create_std__shared_ptr_HybridClientSpec_(void* NON_NULL swiftUnsafePointer) noexcept {
     NitroClient::HybridClientSpec_cxx swiftPart = NitroClient::HybridClientSpec_cxx::fromUnsafe(swiftUnsafePointer);
