@@ -22,25 +22,28 @@
 namespace margelo::nitro::client {
 
 int initialize(JavaVM* vm) {
+  return facebook::jni::initialize(vm, []() {
+    ::margelo::nitro::client::registerAllNatives();
+  });
+}
+
+void registerAllNatives() {
   using namespace margelo::nitro;
   using namespace margelo::nitro::client;
-  using namespace facebook;
 
-  return facebook::jni::initialize(vm, [] {
-    // Register native JNI methods
-    margelo::nitro::client::JHybridClientSpec::registerNatives();
-    margelo::nitro::client::JFunc_void_double_double_cxx::registerNatives();
+  // Register native JNI methods
+  margelo::nitro::client::JHybridClientSpec::registerNatives();
+  margelo::nitro::client::JFunc_void_double_double_cxx::registerNatives();
 
-    // Register Nitro Hybrid Objects
-    HybridObjectRegistry::registerHybridObjectConstructor(
-      "Client",
-      []() -> std::shared_ptr<HybridObject> {
-        static DefaultConstructableObject<JHybridClientSpec::javaobject> object("com/margelo/nitro/client/HybridClient");
-        auto instance = object.create();
-        return instance->cthis()->shared();
-      }
-    );
-  });
+  // Register Nitro Hybrid Objects
+  HybridObjectRegistry::registerHybridObjectConstructor(
+    "Client",
+    []() -> std::shared_ptr<HybridObject> {
+      static DefaultConstructableObject<JHybridClientSpec::javaobject> object("com/margelo/nitro/client/HybridClient");
+      auto instance = object.create();
+      return instance->cthis()->shared();
+    }
+  );
 }
 
 } // namespace margelo::nitro::client

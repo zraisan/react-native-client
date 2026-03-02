@@ -60,10 +60,6 @@ buck-out/
 android/app/libs
 android/keystores/debug.keystore
 
-# generated
-nitrogen/generated
-
-
 # Yarn
 .yarn/*
 !.yarn/patches
