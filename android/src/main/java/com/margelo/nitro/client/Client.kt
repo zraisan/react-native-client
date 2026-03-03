@@ -7,9 +7,9 @@ import com.margelo.nitro.NitroModules
 import com.margelo.nitro.core.Promise
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.ResponseBody
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -37,100 +37,145 @@ class HybridClient : HybridClientSpec() {
             }
 
             try {
-                val maxRetries = 3
                 val file = File(config.toFile)
                 file.parentFile?.mkdirs()
 
-                var bytesWritten = 0L
-                var totalLength = -1L
-                var lastProgressTime = 0L
-                var lastStatusCode = 0
+                val client = httpClient.newBuilder().apply {
+                    config.connectionTimeout?.let { connectTimeout(it.toLong(), TimeUnit.MILLISECONDS) }
+                    config.readTimeout?.let { readTimeout(it.toLong(), TimeUnit.MILLISECONDS) }
+                }.build()
 
-                for (attempt in 0 until maxRetries) {
-                    if (attempt > 0) {
-                        val backoffMs = (1000L shl (attempt - 1)) // 1s, 2s, 4s
-                        Log.d("HybridClient", "Retry #$attempt after ${backoffMs}ms, resuming from $bytesWritten bytes")
-                        Thread.sleep(backoffMs)
-                        bytesWritten = file.length()
-                    }
-
-                    val requestBuilder = Request.Builder().url(config.fromUrl)
-                    if (bytesWritten > 0) {
-                        requestBuilder.header("Range", "bytes=$bytesWritten-")
-                    }
-
-                    val response = try {
-                        httpClient.newCall(requestBuilder.build()).execute()
-                    } catch (e: IOException) {
-                        if (attempt < maxRetries - 1) continue else throw e
-                    }
-
-                    lastStatusCode = response.code
-                    val body = response.body ?: throw Exception("Empty response body")
-
-                    when (response.code) {
-                        206 -> {
-                            // Server supports Range — append to existing file
-                            val chunkLength = body.contentLength()
-                            if (totalLength <= 0 && chunkLength > 0) {
-                                totalLength = bytesWritten + chunkLength
-                            }
-                            Log.d("HybridClient", "Resuming: bytesWritten=$bytesWritten, chunkLength=$chunkLength, totalLength=$totalLength")
-                        }
-                        416 -> {
-                            // Range not satisfiable — file may have changed, start over
-                            body.close()
-                            bytesWritten = 0L
-                            lastProgressTime = 0L
-                            file.delete()
-                            continue
-                        }
-                        else -> {
-                            // 200 or other success — server doesn't support Range, start over
-                            bytesWritten = 0L
-                            lastProgressTime = 0L
-                            totalLength = body.contentLength()
-                            Log.d("HybridClient", "Full download: contentLength=$totalLength")
-                        }
-                    }
-
-                    val append = response.code == 206
-                    try {
-                        FileOutputStream(file, append).use { output ->
-                            body.byteStream().use { input ->
-                                val buffer = ByteArray(64 * 1024)
-                                var bytes: Int
-                                while (input.read(buffer).also { bytes = it } != -1) {
-                                    output.write(buffer, 0, bytes)
-                                    bytesWritten += bytes
-                                    if (totalLength > 0) {
-                                        val now = System.currentTimeMillis()
-                                        if (now - lastProgressTime >= 150) {
-                                            lastProgressTime = now
-                                            val bw = bytesWritten
-                                            val tl = totalLength
-                                            progressExecutor.execute {
-                                                config.onProgress?.invoke(bw.toDouble(), tl.toDouble())
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        // Download completed successfully
-                        break
-                    } catch (e: IOException) {
-                        if (attempt < maxRetries - 1) continue else throw e
-                    }
+                // Check existing partial file if resumable
+                var existingBytes = 0L
+                if (config.resumable == true && file.exists()) {
+                    existingBytes = file.length()
                 }
 
-                DownloadResult(
-                    statusCode = lastStatusCode.toDouble(),
-                    bytesWritten = bytesWritten.toDouble(),
-                )
+                val requestBuilder = Request.Builder().url(config.fromUrl)
+                if (existingBytes > 0) {
+                    requestBuilder.header("Range", "bytes=$existingBytes-")
+                }
+
+                val response = client.newCall(requestBuilder.build()).execute()
+                val statusCode = response.code
+                val body = response.body ?: throw Exception("Empty response body")
+
+                when (statusCode) {
+                    206 -> {
+                        val chunkLength = body.contentLength()
+                        val totalLength = if (chunkLength > 0) existingBytes + chunkLength else -1L
+
+                        if (totalLength > 0 && existingBytes >= totalLength) {
+                            body.close()
+                            progressExecutor.execute {
+                                config.begin?.invoke(statusCode.toDouble(), totalLength.toDouble())
+                                config.onProgress?.invoke(existingBytes.toDouble(), totalLength.toDouble())
+                            }
+                            return@async DownloadResult(
+                                statusCode = statusCode.toDouble(),
+                                bytesWritten = existingBytes.toDouble()
+                            )
+                        }
+
+                        Log.d("HybridClient", "Resuming: existingBytes=$existingBytes, chunkLength=$chunkLength, totalLength=$totalLength")
+                        progressExecutor.execute {
+                            config.begin?.invoke(statusCode.toDouble(), totalLength.toDouble())
+                        }
+                        val bytesWritten = streamToFile(file, body, totalLength, config)
+                        DownloadResult(
+                            statusCode = statusCode.toDouble(),
+                            bytesWritten = bytesWritten.toDouble()
+                        )
+                    }
+                    416 -> {
+                        body.close()
+                        file.delete()
+                        Log.d("HybridClient", "416 received, deleting file and restarting")
+
+                        val freshRequest = Request.Builder().url(config.fromUrl).build()
+                        val freshResponse = client.newCall(freshRequest).execute()
+                        val freshBody = freshResponse.body ?: throw Exception("Empty response body on fresh request")
+                        val totalLength = freshBody.contentLength()
+
+                        Log.d("HybridClient", "Restarting download: totalLength=$totalLength")
+                        progressExecutor.execute {
+                            config.begin?.invoke(freshResponse.code.toDouble(), totalLength.toDouble())
+                        }
+                        val bytesWritten = streamToFile(file, freshBody, totalLength, config)
+                        DownloadResult(
+                            statusCode = freshResponse.code.toDouble(),
+                            bytesWritten = bytesWritten.toDouble()
+                        )
+                    }
+                    200 -> {
+                        val totalLength = body.contentLength()
+                        Log.d("HybridClient", "Full download (200): totalLength=$totalLength")
+                        progressExecutor.execute {
+                            config.begin?.invoke(statusCode.toDouble(), totalLength.toDouble())
+                        }
+                        val bytesWritten = streamToFile(file, body, totalLength, config)
+                        DownloadResult(
+                            statusCode = statusCode.toDouble(),
+                            bytesWritten = bytesWritten.toDouble()
+                        )
+                    }
+                    else -> {
+                        body.close()
+                        progressExecutor.execute {
+                            config.begin?.invoke(statusCode.toDouble(), 0.0)
+                        }
+                        DownloadResult(
+                            statusCode = statusCode.toDouble(),
+                            bytesWritten = 0.0
+                        )
+                    }
+                }
             } finally {
                 context.stopService(serviceIntent)
             }
         }
+    }
+
+    private fun streamToFile(
+        file: File,
+        body: ResponseBody,
+        totalLength: Long,
+        config: DownloadConfig
+    ): Long {
+        val append = config.resumable == true
+        var bytesWritten = if (append) file.length() else 0L
+        var lastProgressTime = 0L
+
+        FileOutputStream(file, append).use { output ->
+            body.byteStream().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                var bytes: Int
+                while (input.read(buffer).also { bytes = it } != -1) {
+                    output.write(buffer, 0, bytes)
+                    bytesWritten += bytes
+                    if (totalLength > 0) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastProgressTime >= 150) {
+                            lastProgressTime = now
+                            val bw = bytesWritten
+                            val tl = totalLength
+                            progressExecutor.execute {
+                                config.onProgress?.invoke(bw.toDouble(), tl.toDouble())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (totalLength > 0) {
+            val bw = bytesWritten
+            val tl = totalLength
+            progressExecutor.execute {
+                config.onProgress?.invoke(bw.toDouble(), tl.toDouble())
+            }
+        }
+
+        return bytesWritten
     }
 }

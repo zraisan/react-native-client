@@ -25,6 +25,9 @@ data class DownloadConfig(
   val toFile: String,
   @DoNotStrip
   @Keep
+  val resumable: Boolean?,
+  @DoNotStrip
+  @Keep
   val background: Boolean?,
   @DoNotStrip
   @Keep
@@ -40,13 +43,16 @@ data class DownloadConfig(
   val readTimeout: Double?,
   @DoNotStrip
   @Keep
-  val onProgress: Func_void_double_double?
+  val onProgress: Func_void_double_double?,
+  @DoNotStrip
+  @Keep
+  val begin: Func_void_double_double?
 ) {
   /**
    * Create a new instance of DownloadConfig from Kotlin
    */
-  constructor(fromUrl: String, toFile: String, background: Boolean?, discretionary: Boolean?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?, onProgress: ((bytesWritten: Double, contentLength: Double) -> Unit)?):
-         this(fromUrl, toFile, background, discretionary, progressDivider, connectionTimeout, readTimeout, onProgress?.let { Func_void_double_double_java(it) })
+  constructor(fromUrl: String, toFile: String, resumable: Boolean?, background: Boolean?, discretionary: Boolean?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?, onProgress: ((bytesWritten: Double, contentLength: Double) -> Unit)?, begin: ((statusCode: Double, contentLength: Double) -> Unit)?):
+         this(fromUrl, toFile, resumable, background, discretionary, progressDivider, connectionTimeout, readTimeout, onProgress?.let { Func_void_double_double_java(it) }, begin?.let { Func_void_double_double_java(it) })
 
   companion object {
     /**
@@ -56,8 +62,8 @@ data class DownloadConfig(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(fromUrl: String, toFile: String, background: Boolean?, discretionary: Boolean?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?, onProgress: Func_void_double_double?): DownloadConfig {
-      return DownloadConfig(fromUrl, toFile, background, discretionary, progressDivider, connectionTimeout, readTimeout, onProgress)
+    private fun fromCpp(fromUrl: String, toFile: String, resumable: Boolean?, background: Boolean?, discretionary: Boolean?, progressDivider: Double?, connectionTimeout: Double?, readTimeout: Double?, onProgress: Func_void_double_double?, begin: Func_void_double_double?): DownloadConfig {
+      return DownloadConfig(fromUrl, toFile, resumable, background, discretionary, progressDivider, connectionTimeout, readTimeout, onProgress, begin)
     }
   }
 }

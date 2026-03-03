@@ -43,19 +43,21 @@ namespace margelo::nitro::client {
   public:
     std::string fromUrl     SWIFT_PRIVATE;
     std::string toFile     SWIFT_PRIVATE;
+    std::optional<bool> resumable     SWIFT_PRIVATE;
     std::optional<bool> background     SWIFT_PRIVATE;
     std::optional<bool> discretionary     SWIFT_PRIVATE;
     std::optional<double> progressDivider     SWIFT_PRIVATE;
     std::optional<double> connectionTimeout     SWIFT_PRIVATE;
     std::optional<double> readTimeout     SWIFT_PRIVATE;
     std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>> onProgress     SWIFT_PRIVATE;
+    std::optional<std::function<void(double /* statusCode */, double /* contentLength */)>> begin     SWIFT_PRIVATE;
 
   public:
     DownloadConfig() = default;
-    explicit DownloadConfig(std::string fromUrl, std::string toFile, std::optional<bool> background, std::optional<bool> discretionary, std::optional<double> progressDivider, std::optional<double> connectionTimeout, std::optional<double> readTimeout, std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>> onProgress): fromUrl(fromUrl), toFile(toFile), background(background), discretionary(discretionary), progressDivider(progressDivider), connectionTimeout(connectionTimeout), readTimeout(readTimeout), onProgress(onProgress) {}
+    explicit DownloadConfig(std::string fromUrl, std::string toFile, std::optional<bool> resumable, std::optional<bool> background, std::optional<bool> discretionary, std::optional<double> progressDivider, std::optional<double> connectionTimeout, std::optional<double> readTimeout, std::optional<std::function<void(double /* bytesWritten */, double /* contentLength */)>> onProgress, std::optional<std::function<void(double /* statusCode */, double /* contentLength */)>> begin): fromUrl(fromUrl), toFile(toFile), resumable(resumable), background(background), discretionary(discretionary), progressDivider(progressDivider), connectionTimeout(connectionTimeout), readTimeout(readTimeout), onProgress(onProgress), begin(begin) {}
 
   public:
-    // DownloadConfig is not equatable because these properties are not equatable: onProgress
+    // DownloadConfig is not equatable because these properties are not equatable: onProgress, begin
   };
 
 } // namespace margelo::nitro::client
@@ -70,24 +72,28 @@ namespace margelo::nitro {
       return margelo::nitro::client::DownloadConfig(
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fromUrl"))),
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "toFile"))),
+        JSIConverter<std::optional<bool>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "resumable"))),
         JSIConverter<std::optional<bool>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "background"))),
         JSIConverter<std::optional<bool>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "discretionary"))),
         JSIConverter<std::optional<double>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "progressDivider"))),
         JSIConverter<std::optional<double>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "connectionTimeout"))),
         JSIConverter<std::optional<double>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "readTimeout"))),
-        JSIConverter<std::optional<std::function<void(double, double)>>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "onProgress")))
+        JSIConverter<std::optional<std::function<void(double, double)>>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "onProgress"))),
+        JSIConverter<std::optional<std::function<void(double, double)>>>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "begin")))
       );
     }
     static inline jsi::Value toJSI(jsi::Runtime& runtime, const margelo::nitro::client::DownloadConfig& arg) {
       jsi::Object obj(runtime);
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "fromUrl"), JSIConverter<std::string>::toJSI(runtime, arg.fromUrl));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "toFile"), JSIConverter<std::string>::toJSI(runtime, arg.toFile));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "resumable"), JSIConverter<std::optional<bool>>::toJSI(runtime, arg.resumable));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "background"), JSIConverter<std::optional<bool>>::toJSI(runtime, arg.background));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "discretionary"), JSIConverter<std::optional<bool>>::toJSI(runtime, arg.discretionary));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "progressDivider"), JSIConverter<std::optional<double>>::toJSI(runtime, arg.progressDivider));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "connectionTimeout"), JSIConverter<std::optional<double>>::toJSI(runtime, arg.connectionTimeout));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "readTimeout"), JSIConverter<std::optional<double>>::toJSI(runtime, arg.readTimeout));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "onProgress"), JSIConverter<std::optional<std::function<void(double, double)>>>::toJSI(runtime, arg.onProgress));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "begin"), JSIConverter<std::optional<std::function<void(double, double)>>>::toJSI(runtime, arg.begin));
       return obj;
     }
     static inline bool canConvert(jsi::Runtime& runtime, const jsi::Value& value) {
@@ -100,12 +106,14 @@ namespace margelo::nitro {
       }
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fromUrl")))) return false;
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "toFile")))) return false;
+      if (!JSIConverter<std::optional<bool>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "resumable")))) return false;
       if (!JSIConverter<std::optional<bool>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "background")))) return false;
       if (!JSIConverter<std::optional<bool>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "discretionary")))) return false;
       if (!JSIConverter<std::optional<double>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "progressDivider")))) return false;
       if (!JSIConverter<std::optional<double>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "connectionTimeout")))) return false;
       if (!JSIConverter<std::optional<double>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "readTimeout")))) return false;
       if (!JSIConverter<std::optional<std::function<void(double, double)>>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "onProgress")))) return false;
+      if (!JSIConverter<std::optional<std::function<void(double, double)>>>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "begin")))) return false;
       return true;
     }
   };

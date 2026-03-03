@@ -157,6 +157,21 @@ namespace margelo::nitro::client::bridge::swift {
     return optional.value();
   }
   
+  // pragma MARK: std::optional<std::function<void(double /* statusCode */, double /* contentLength */)>>
+  /**
+   * Specialized version of `std::optional<std::function<void(double / * statusCode * /, double / * contentLength * /)>>`.
+   */
+  using std__optional_std__function_void_double____statusCode_____double____contentLength______ = std::optional<std::function<void(double /* statusCode */, double /* contentLength */)>>;
+  inline std::optional<std::function<void(double /* statusCode */, double /* contentLength */)>> create_std__optional_std__function_void_double____statusCode_____double____contentLength______(const std::function<void(double /* statusCode */, double /* contentLength */)>& value) noexcept {
+    return std::optional<std::function<void(double /* statusCode */, double /* contentLength */)>>(value);
+  }
+  inline bool has_value_std__optional_std__function_void_double____statusCode_____double____contentLength______(const std::optional<std::function<void(double /* statusCode */, double /* contentLength */)>>& optional) noexcept {
+    return optional.has_value();
+  }
+  inline std::function<void(double /* statusCode */, double /* contentLength */)> get_std__optional_std__function_void_double____statusCode_____double____contentLength______(const std::optional<std::function<void(double /* statusCode */, double /* contentLength */)>>& optional) noexcept {
+    return optional.value();
+  }
+  
   // pragma MARK: std::shared_ptr<HybridClientSpec>
   /**
    * Specialized version of `std::shared_ptr<HybridClientSpec>`.
