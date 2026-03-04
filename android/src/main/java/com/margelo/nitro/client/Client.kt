@@ -28,12 +28,16 @@ class HybridClient : HybridClientSpec() {
     override fun downloadFile(config: DownloadConfig): Promise<DownloadResult> {
         return Promise.async {
             val context = NitroModules.applicationContext!!
-            val serviceIntent = Intent(context, DownloadService::class.java)
+            val useBackground = config.background == true
+            var serviceIntent: Intent? = null
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent)
-            } else {
-                context.startService(serviceIntent)
+            if (useBackground) {
+                serviceIntent = Intent(context, DownloadService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
+                }
             }
 
             try {
@@ -131,7 +135,9 @@ class HybridClient : HybridClientSpec() {
                     }
                 }
             } finally {
-                context.stopService(serviceIntent)
+                if (useBackground && serviceIntent != null) {
+                    context.stopService(serviceIntent)
+                }
             }
         }
     }

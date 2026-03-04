@@ -1,6 +1,82 @@
 import Foundation
 import NitroModules
 
+class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate {
+    let destinationURL: URL
+    let existingBytes: Int64
+    let config: DownloadConfig
+    let continuation: CheckedContinuation<DownloadResult, Error>
+
+    init(
+        destinationURL: URL,
+        existingBytes: Int64,
+        config: DownloadConfig,
+        continuation: CheckedContinuation<DownloadResult, Error>
+    ) {
+        self.destinationURL = destinationURL
+        self.existingBytes = existingBytes
+        self.config = config
+        self.continuation = continuation
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        let totalWritten = existingBytes + totalBytesWritten
+        let totalExpected = existingBytes + totalBytesExpectedToWrite
+        config.onProgress?(Double(totalWritten), Double(totalExpected))
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        let fileManager = FileManager.default
+        let statusCode = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 200
+
+        do {
+            if config.resumable == true && existingBytes > 0 {
+                // Append downloaded chunk to existing file
+                let downloadedData = try Data(contentsOf: location)
+                let fileHandle = try FileHandle(forWritingTo: destinationURL)
+                try fileHandle.seekToEnd()
+                try fileHandle.write(contentsOf: downloadedData)
+                try fileHandle.close()
+            } else {
+                // Replace/move the temp file to destination
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try fileManager.removeItem(at: destinationURL)
+                }
+                try fileManager.moveItem(at: location, to: destinationURL)
+            }
+
+            let finalSize = (try? fileManager.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64) ?? 0
+            continuation.resume(returning: DownloadResult(
+                statusCode: Double(statusCode),
+                bytesWritten: Double(finalSize)
+            ))
+        } catch {
+            continuation.resume(throwing: error)
+        }
+
+        session.finishTasksAndInvalidate()
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error {
+            continuation.resume(throwing: error)
+            session.finishTasksAndInvalidate()
+        }
+    }
+
+}
+
 class HybridClient: HybridClientSpec {
     var hybridContext = margelo.nitro.HybridContext()
     var memorySize: Int { return getSizeOf(self) }
@@ -37,6 +113,16 @@ class HybridClient: HybridClientSpec {
                 request.setValue("bytes=\(existingBytes)-", forHTTPHeaderField: "Range")
             }
 
+            if config.background == true {
+                return try await self.backgroundDownload(
+                    request: request,
+                    fileURL: fileURL,
+                    existingBytes: existingBytes,
+                    config: config
+                )
+            }
+
+            // Foreground download (existing behavior)
             let (asyncBytes, response) = try await URLSession.shared.bytes(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -119,6 +205,36 @@ class HybridClient: HybridClientSpec {
                     bytesWritten: 0
                 )
             }
+        }
+    }
+
+    private func backgroundDownload(
+        request: URLRequest,
+        fileURL: URL,
+        existingBytes: Int64,
+        config: DownloadConfig
+    ) async throws -> DownloadResult {
+        return try await withCheckedThrowingContinuation { continuation in
+            let identifier = "com.margelo.nitro.client.bg.\(UUID().uuidString)"
+            let sessionConfig = URLSessionConfiguration.background(withIdentifier: identifier)
+            sessionConfig.isDiscretionary = config.discretionary == true
+
+            if let connectionTimeout = config.connectionTimeout {
+                sessionConfig.timeoutIntervalForRequest = connectionTimeout / 1000.0
+            }
+
+            let delegate = BackgroundDownloadDelegate(
+                destinationURL: fileURL,
+                existingBytes: existingBytes,
+                config: config,
+                continuation: continuation
+            )
+
+            let session = URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
+            let task = session.downloadTask(with: request)
+
+            config.begin?(0, 0)
+            task.resume()
         }
     }
 
