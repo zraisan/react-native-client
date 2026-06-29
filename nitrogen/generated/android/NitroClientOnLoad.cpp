@@ -27,21 +27,28 @@ int initialize(JavaVM* vm) {
   });
 }
 
+struct JHybridClientSpecImpl: public jni::JavaClass<JHybridClientSpecImpl, JHybridClientSpec::JavaPart> {
+  static auto constexpr kJavaDescriptor = "Lcom/margelo/nitro/client/HybridClient;";
+  static std::shared_ptr<JHybridClientSpec> create() {
+    static auto constructorFn = javaClassStatic()->getConstructor<JHybridClientSpecImpl::javaobject()>();
+    jni::local_ref<JHybridClientSpec::JavaPart> javaPart = javaClassStatic()->newObject(constructorFn);
+    return javaPart->getJHybridClientSpec();
+  }
+};
+
 void registerAllNatives() {
   using namespace margelo::nitro;
   using namespace margelo::nitro::client;
 
   // Register native JNI methods
-  margelo::nitro::client::JHybridClientSpec::registerNatives();
+  margelo::nitro::client::JHybridClientSpec::CxxPart::registerNatives();
   margelo::nitro::client::JFunc_void_double_double_cxx::registerNatives();
 
   // Register Nitro Hybrid Objects
   HybridObjectRegistry::registerHybridObjectConstructor(
     "Client",
     []() -> std::shared_ptr<HybridObject> {
-      static DefaultConstructableObject<JHybridClientSpec::javaobject> object("com/margelo/nitro/client/HybridClient");
-      auto instance = object.create();
-      return instance->cthis()->shared();
+      return JHybridClientSpecImpl::create();
     }
   );
 }

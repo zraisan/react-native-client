@@ -26,49 +26,43 @@ namespace margelo::nitro::client { struct DownloadConfig; }
 
 namespace margelo::nitro::client {
 
-  jni::local_ref<JHybridClientSpec::jhybriddata> JHybridClientSpec::initHybrid(jni::alias_ref<jhybridobject> jThis) {
+  std::shared_ptr<JHybridClientSpec> JHybridClientSpec::JavaPart::getJHybridClientSpec() {
+    auto hybridObject = JHybridObject::JavaPart::getJHybridObject();
+    auto castHybridObject = std::dynamic_pointer_cast<JHybridClientSpec>(hybridObject);
+    if (castHybridObject == nullptr) [[unlikely]] {
+      throw std::runtime_error("Failed to downcast JHybridObject to JHybridClientSpec!");
+    }
+    return castHybridObject;
+  }
+
+  jni::local_ref<JHybridClientSpec::CxxPart::jhybriddata> JHybridClientSpec::CxxPart::initHybrid(jni::alias_ref<jhybridobject> jThis) {
     return makeCxxInstance(jThis);
   }
 
-  void JHybridClientSpec::registerNatives() {
-    registerHybrid({
-      makeNativeMethod("initHybrid", JHybridClientSpec::initHybrid),
-    });
-  }
-
-  size_t JHybridClientSpec::getExternalMemorySize() noexcept {
-    static const auto method = javaClassStatic()->getMethod<jlong()>("getMemorySize");
-    return method(_javaPart);
-  }
-
-  bool JHybridClientSpec::equals(const std::shared_ptr<HybridObject>& other) {
-    if (auto otherCast = std::dynamic_pointer_cast<JHybridClientSpec>(other)) {
-      return _javaPart == otherCast->_javaPart;
+  std::shared_ptr<JHybridObject> JHybridClientSpec::CxxPart::createHybridObject(const jni::local_ref<JHybridObject::JavaPart>& javaPart) {
+    auto castJavaPart = jni::dynamic_ref_cast<JHybridClientSpec::JavaPart>(javaPart);
+    if (castJavaPart == nullptr) [[unlikely]] {
+      throw std::runtime_error("Failed to cast JHybridObject::JavaPart to JHybridClientSpec::JavaPart!");
     }
-    return false;
+    return std::make_shared<JHybridClientSpec>(castJavaPart);
   }
 
-  void JHybridClientSpec::dispose() noexcept {
-    static const auto method = javaClassStatic()->getMethod<void()>("dispose");
-    method(_javaPart);
-  }
-
-  std::string JHybridClientSpec::toString() {
-    static const auto method = javaClassStatic()->getMethod<jni::JString()>("toString");
-    auto javaString = method(_javaPart);
-    return javaString->toStdString();
+  void JHybridClientSpec::CxxPart::registerNatives() {
+    registerHybrid({
+      makeNativeMethod("initHybrid", JHybridClientSpec::CxxPart::initHybrid),
+    });
   }
 
   // Properties
   std::string JHybridClientSpec::getDocumentDirectoryPath() {
-    static const auto method = javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("getDocumentDirectoryPath");
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("getDocumentDirectoryPath");
     auto __result = method(_javaPart);
     return __result->toStdString();
   }
 
   // Methods
   std::shared_ptr<Promise<DownloadResult>> JHybridClientSpec::downloadFile(const DownloadConfig& config) {
-    static const auto method = javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jni::alias_ref<JDownloadConfig> /* config */)>("downloadFile");
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jni::alias_ref<JDownloadConfig> /* config */)>("downloadFile");
     auto __result = method(_javaPart, JDownloadConfig::fromCpp(config));
     return [&]() {
       auto __promise = Promise<DownloadResult>::create();

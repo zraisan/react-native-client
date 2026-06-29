@@ -1,9 +1,66 @@
 import Foundation
 import NitroModules
 
+private struct ContentRange {
+    let start: Int64
+    let end: Int64
+    let total: Int64?
+}
+
+private func parseContentRange(_ header: String?) -> ContentRange? {
+    guard let header = header else { return nil }
+
+    let parts = header
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+
+    guard parts.count == 2, parts[0].lowercased() == "bytes" else {
+        return nil
+    }
+
+    let rangeParts = parts[1].split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
+    guard rangeParts.count == 2 else { return nil }
+
+    let bounds = rangeParts[0].split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+    guard bounds.count == 2,
+          let start = Int64(String(bounds[0])),
+          let end = Int64(String(bounds[1])) else {
+        return nil
+    }
+
+    let totalPart = String(rangeParts[1])
+    let total = totalPart == "*" ? nil : Int64(totalPart)
+    if totalPart != "*" && total == nil {
+        return nil
+    }
+
+    return ContentRange(start: start, end: end, total: total)
+}
+
+private func isValidResumeResponse(
+    contentRange: ContentRange?,
+    existingBytes: Int64,
+    contentLength: Int64
+) -> Bool {
+    if existingBytes <= 0 { return true }
+    guard let contentRange = contentRange else { return false }
+    guard contentRange.start == existingBytes else { return false }
+    guard contentRange.end >= contentRange.start else { return false }
+    if let total = contentRange.total, contentRange.end >= total {
+        return false
+    }
+
+    let rangeLength = contentRange.end - contentRange.start + 1
+    if contentLength > 0 && contentLength != rangeLength {
+        return false
+    }
+
+    return true
+}
+
 class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate {
     let destinationURL: URL
-    let existingBytes: Int64
+    var existingBytes: Int64
     let config: DownloadConfig
     let continuation: CheckedContinuation<DownloadResult, Error>
 
@@ -38,16 +95,25 @@ class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate {
         didFinishDownloadingTo location: URL
     ) {
         let fileManager = FileManager.default
-        let statusCode = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 200
+        let httpResponse = downloadTask.response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? 200
+        let contentRange = parseContentRange(httpResponse?.value(forHTTPHeaderField: "Content-Range"))
+        let contentLength = downloadTask.response?.expectedContentLength ?? -1
 
         do {
-            if config.resumable == true && existingBytes > 0 {
+            if statusCode == 206 && existingBytes > 0 {
+                guard isValidResumeResponse(
+                    contentRange: contentRange,
+                    existingBytes: existingBytes,
+                    contentLength: contentLength
+                ) else {
+                    try? fileManager.removeItem(at: destinationURL)
+                    try restartFreshDownload(in: session)
+                    return
+                }
+
                 // Append downloaded chunk to existing file
-                let downloadedData = try Data(contentsOf: location)
-                let fileHandle = try FileHandle(forWritingTo: destinationURL)
-                try fileHandle.seekToEnd()
-                try fileHandle.write(contentsOf: downloadedData)
-                try fileHandle.close()
+                try appendFileContents(from: location, to: destinationURL)
             } else {
                 // Replace/move the temp file to destination
                 if fileManager.fileExists(atPath: destinationURL.path) {
@@ -72,6 +138,40 @@ class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate {
         if let error = error {
             continuation.resume(throwing: error)
             session.finishTasksAndInvalidate()
+        }
+    }
+
+    private func restartFreshDownload(in session: URLSession) throws {
+        guard let url = URL(string: config.fromUrl) else {
+            throw NSError(
+                domain: "NitroClient",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid URL: \(config.fromUrl)"]
+            )
+        }
+
+        var request = URLRequest(url: url)
+        if let connectionTimeout = config.connectionTimeout {
+            request.timeoutInterval = connectionTimeout / 1000.0
+        }
+
+        existingBytes = 0
+        config.begin?(0, 0)
+        session.downloadTask(with: request).resume()
+    }
+
+    private func appendFileContents(from sourceURL: URL, to destinationURL: URL) throws {
+        let input = try FileHandle(forReadingFrom: sourceURL)
+        defer { try? input.close() }
+
+        let output = try FileHandle(forWritingTo: destinationURL)
+        defer { try? output.close() }
+
+        try output.seekToEnd()
+
+        let bufferSize = 1024 * 1024
+        while let chunk = try input.read(upToCount: bufferSize), !chunk.isEmpty {
+            try output.write(contentsOf: chunk)
         }
     }
 
@@ -134,9 +234,19 @@ class HybridClient: HybridClientSpec {
             switch statusCode {
             case 206:
                 let contentLength = httpResponse.expectedContentLength
-                let totalLength: Int64 = contentLength > 0
-                    ? existingBytes + Int64(contentLength)
-                    : -1
+                let contentRange = parseContentRange(httpResponse.value(forHTTPHeaderField: "Content-Range"))
+
+                if !isValidResumeResponse(
+                    contentRange: contentRange,
+                    existingBytes: existingBytes,
+                    contentLength: contentLength
+                ) {
+                    try? fileManager.removeItem(at: fileURL)
+                    return try await self.downloadFresh(url: url, fileURL: fileURL, config: config)
+                }
+
+                let totalLength: Int64 = contentRange?.total
+                    ?? (contentLength > 0 ? existingBytes + contentLength : -1)
 
                 if totalLength > 0 && existingBytes >= totalLength {
                     config.begin?(Double(statusCode), Double(totalLength))
@@ -152,7 +262,8 @@ class HybridClient: HybridClientSpec {
                     fileURL: fileURL,
                     asyncBytes: asyncBytes,
                     totalLength: totalLength,
-                    config: config
+                    config: config,
+                    append: existingBytes > 0
                 )
                 return DownloadResult(
                     statusCode: Double(statusCode),
@@ -161,28 +272,7 @@ class HybridClient: HybridClientSpec {
 
             case 416:
                 try? fileManager.removeItem(at: fileURL)
-
-                var freshRequest = URLRequest(url: url)
-                if let connectionTimeout = config.connectionTimeout {
-                    freshRequest.timeoutInterval = connectionTimeout / 1000.0
-                }
-                let (freshBytes, freshResponse) = try await URLSession.shared.bytes(for: freshRequest)
-                guard let freshHttpResponse = freshResponse as? HTTPURLResponse else {
-                    throw RuntimeError.error(withMessage: "Invalid response on fresh request")
-                }
-
-                let totalLength = Int64(freshHttpResponse.expectedContentLength)
-                config.begin?(Double(freshHttpResponse.statusCode), Double(totalLength))
-                let bytesWritten = try await self.streamToFile(
-                    fileURL: fileURL,
-                    asyncBytes: freshBytes,
-                    totalLength: totalLength,
-                    config: config
-                )
-                return DownloadResult(
-                    statusCode: Double(freshHttpResponse.statusCode),
-                    bytesWritten: Double(bytesWritten)
-                )
+                return try await self.downloadFresh(url: url, fileURL: fileURL, config: config)
 
             case 200:
                 let totalLength = Int64(httpResponse.expectedContentLength)
@@ -191,7 +281,8 @@ class HybridClient: HybridClientSpec {
                     fileURL: fileURL,
                     asyncBytes: asyncBytes,
                     totalLength: totalLength,
-                    config: config
+                    config: config,
+                    append: false
                 )
                 return DownloadResult(
                     statusCode: Double(statusCode),
@@ -206,6 +297,36 @@ class HybridClient: HybridClientSpec {
                 )
             }
         }
+    }
+
+    private func downloadFresh(
+        url: URL,
+        fileURL: URL,
+        config: DownloadConfig
+    ) async throws -> DownloadResult {
+        var request = URLRequest(url: url)
+        if let connectionTimeout = config.connectionTimeout {
+            request.timeoutInterval = connectionTimeout / 1000.0
+        }
+
+        let (freshBytes, freshResponse) = try await URLSession.shared.bytes(for: request)
+        guard let freshHttpResponse = freshResponse as? HTTPURLResponse else {
+            throw RuntimeError.error(withMessage: "Invalid response on fresh request")
+        }
+
+        let totalLength = Int64(freshHttpResponse.expectedContentLength)
+        config.begin?(Double(freshHttpResponse.statusCode), Double(totalLength))
+        let bytesWritten = try await self.streamToFile(
+            fileURL: fileURL,
+            asyncBytes: freshBytes,
+            totalLength: totalLength,
+            config: config,
+            append: false
+        )
+        return DownloadResult(
+            statusCode: Double(freshHttpResponse.statusCode),
+            bytesWritten: Double(bytesWritten)
+        )
     }
 
     private func backgroundDownload(
@@ -242,13 +363,16 @@ class HybridClient: HybridClientSpec {
         fileURL: URL,
         asyncBytes: URLSession.AsyncBytes,
         totalLength: Int64,
-        config: DownloadConfig
+        config: DownloadConfig,
+        append: Bool
     ) async throws -> Int64 {
         let fileManager = FileManager.default
-        let append = config.resumable == true
 
         if !append {
-            fileManager.createFile(atPath: fileURL.path, contents: nil)
+            if fileManager.fileExists(atPath: fileURL.path) {
+                try fileManager.removeItem(at: fileURL)
+            }
+            _ = fileManager.createFile(atPath: fileURL.path, contents: nil)
         }
 
         let fileHandle = try FileHandle(forWritingTo: fileURL)
