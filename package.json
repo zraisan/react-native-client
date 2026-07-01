@@ -1,7 +1,7 @@
 {
   "name": "react-native-client",
   "version": "0.0.2",
-  "description": "react-native-client",
+  "description": "Native React Native HTTP client for resumable background file downloads.",
   "main": "lib/index",
   "module": "lib/index",
   "types": "lib/index.d.ts",
@@ -17,6 +17,8 @@
     "android/fix-prefab.gradle",
     "android/CMakeLists.txt",
     "android/src",
+    "docs/demo.gif",
+    "docs/record-android-demo.sh",
     "cpp",
     "ios/**/*.h",
     "ios/**/*.m",
@@ -38,7 +40,11 @@
   },
   "keywords": [
     "react-native",
-    "nitro"
+    "nitro",
+    "http-client",
+    "download",
+    "background-download",
+    "resumable-download"
   ],
   "repository": {
     "type": "git",
