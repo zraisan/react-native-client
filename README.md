@@ -1,9 +1,13 @@
-# react-native-client **Native HTTP downloads for React Native**
+<h1 align="center">react-native-client</h1>
 
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform - Android](https://img.shields.io/badge/platform-Android-green.svg)](https://developer.android.com)
-[![Platform - iOS](https://img.shields.io/badge/platform-iOS-blue.svg)](https://developer.apple.com/ios)
-[![Nitro Modules](https://img.shields.io/badge/Nitro-Modules-orange.svg)](https://nitro.margelo.com)
+<p align="center"><strong>Native HTTP downloads for React Native</strong></p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
+  <a href="https://developer.android.com"><img src="https://img.shields.io/badge/platform-Android-green.svg" alt="Platform Android" /></a>
+  <a href="https://developer.apple.com/ios"><img src="https://img.shields.io/badge/platform-iOS-blue.svg" alt="Platform iOS" /></a>
+  <a href="https://nitro.margelo.com"><img src="https://img.shields.io/badge/Nitro-Modules-orange.svg" alt="Nitro Modules" /></a>
+</p>
 
 `react-native-client` is a native HTTP client for React Native apps that need to download large files without moving bytes through the JavaScript bridge.
 
@@ -13,7 +17,9 @@ The project is intended to grow into a broader HTTP client. Today, the stable su
 
 ## Demo
 
-![react-native-client Android resume demo](docs/demo.gif)
+<p align="center">
+  <img src="docs/demo.gif" alt="react-native-client Android resume demo" />
+</p>
 
 The demo was recorded from the Android example app with `adb screenrecord`, then converted to a sped-up GIF. It starts a native background download, sends the app to the launcher, returns to the same in-flight transfer, force-stops the app, then relaunches and resumes from the partial file with HTTP `206 Partial Content`.
 
